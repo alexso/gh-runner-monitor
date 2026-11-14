@@ -190,7 +190,7 @@ func (m Model) panel(f, w, h int) string {
 	}
 	lines := []string{accent.Render(title), fit(header, w-4)}
 	n := m.count(f)
-	rows := max(1, h-4)
+	rows := max(1, h-5) // borders, two header lines, and entry count
 	start := max(0, m.selection[f]-rows+1)
 	now := time.Now()
 	for i := start; i < min(n, start+rows); i++ {
@@ -235,16 +235,7 @@ func (m Model) panel(f, w, h int) string {
 	if n == 0 {
 		lines = append(lines, "  No entries")
 	}
-	count := fmt.Sprintf("%d entries", n)
-	if f == 0 {
-		for _, r := range m.state.Runners {
-			if r.Status == "Unknown" {
-				count += " · — Status could not be verified."
-				break
-			}
-		}
-	}
-	lines = append(lines, fit(count, w-4))
+	lines = append(lines, fit(fmt.Sprintf("%d entries", n), w-4))
 	return lipgloss.NewStyle().Border(lipgloss.RoundedBorder()).Width(max(1, w-2)).Height(max(1, h-2)).Render(strings.Join(lines, "\n"))
 }
 func (m Model) View() tea.View {
@@ -280,7 +271,7 @@ func (m Model) View() tea.View {
 	}
 	notes := "Queue age is approximate; group may be Unknown. ? help"
 	if m.state.Warning != "" {
-		notes = strings.ReplaceAll(m.state.Warning, "unverified runners are Unknown", "— Status could not be verified")
+		notes = strings.ReplaceAll(m.state.Warning, "Runner inventory restricted; unverified runners are Unknown", "Runner inventory access restricted")
 	}
 	if m.err != "" {
 		notes = "STALE · " + m.err

@@ -11,7 +11,7 @@ Observed running: 2 · Idle: Unknown · Queued: 3 · Updated: 12:34:56
 │ › runner-1 · Running       │ │ › project-a · CI / test · ~2m10s    │
 │   runner-2 · —             │ │   project-b · CI / build · ~40s  │
 ╰───────────────────────────╯ ╰────────────────────────────────────╯
-Runner inventory restricted; — Status could not be verified
+Runner inventory access restricted
 q quit · r refresh · Tab focus · ↑↓/jk move · Enter open · ? help
 ```
 
