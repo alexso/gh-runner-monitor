@@ -1,0 +1,51 @@
+# Copyright (c) 2026 Alex So.
+version: 2
+project_name: gh-runner-monitor
+
+builds:
+  - main: ./cmd/gh-runner-monitor
+    binary: gh-runner-monitor
+    env:
+      - CGO_ENABLED=0
+    goos: [darwin, linux]
+    goarch: [amd64, arm64]
+    flags: [-trimpath]
+    ldflags:
+      - -s -w -X main.version={{ .Version }}
+
+archives:
+  - formats: [tar.gz]
+    name_template: "{{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
+    files:
+      - README.md
+      - COPYRIGHT
+      - LICENSE
+
+checksum:
+  name_template: "{{ .ProjectName }}_{{ .Version }}_checksums.txt"
+
+changelog:
+  use: git
+
+# The release repository and download URLs are inferred from the Git remote.
+release:
+  prerelease: auto
+
+brews:
+  - name: gh-runner-monitor
+    directory: Formula
+    license: MIT
+    install: |
+      bin.install "gh-runner-monitor"
+    test: |
+      assert_match version.to_s, shell_output("#{bin}/gh-runner-monitor --version")
+    homepage: "https://github.com/alexso/gh-runner-monitor"
+    description: "Terminal monitor for GitHub Actions self-hosted runners and queued jobs"
+    dependencies:
+      - name: gh
+    # Do not publish unstable versions to the stable tap.
+    skip_upload: '{{ if .Prerelease }}true{{ else }}false{{ end }}'
+    repository:
+      owner: alexso
+      name: homebrew-tap
+      token: "{{ .Env.HOMEBREW_TAP_GITHUB_TOKEN }}"

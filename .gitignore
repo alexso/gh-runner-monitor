@@ -1,0 +1,12 @@
+# Copyright (c) 2026 Alex So.
+
+/bin/
+/gh-runner-monitor
+*.test
+coverage.out
+.DS_Store
+
+/dist/
+
+# Local configuration may contain personal organization and repository names.
+/config.toml
