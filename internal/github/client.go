@@ -24,6 +24,7 @@ type Job struct {
 	ID         int64     `json:"id"`
 	Name       string    `json:"name"`
 	Workflow   string    `json:"workflow_name"`
+	Branch     string    `json:"head_branch"`
 	Status     string    `json:"status"`
 	URL        string    `json:"html_url"`
 	Created    time.Time `json:"created_at"`
@@ -147,8 +148,9 @@ func (c *Client) Fetch(ctx context.Context, cfg config.Config) (Data, error) {
 		for p := 1; ; p++ {
 			var x struct {
 				Groups []struct {
-					ID   int64  `json:"id"`
-					Name string `json:"name"`
+					ID     int64  `json:"id"`
+					Name   string `json:"name"`
+					Branch string `json:"head_branch"`
 				} `json:"runner_groups"`
 			}
 			e := c.get(ctx, fmt.Sprintf("orgs/%s/actions/runner-groups?per_page=100&page=%d", url.PathEscape(cfg.GitHub.Organization), p), &x)
@@ -234,8 +236,9 @@ func (c *Client) repository(ctx context.Context, org, repo string) ([]Job, error
 		for p := 1; ; p++ {
 			var runs struct {
 				Runs []struct {
-					ID   int64  `json:"id"`
-					Name string `json:"name"`
+					ID     int64  `json:"id"`
+					Name   string `json:"name"`
+					Branch string `json:"head_branch"`
 				} `json:"workflow_runs"`
 			}
 			if e := c.get(ctx, fmt.Sprintf("%s/runs?status=%s&per_page=100&page=%d", base, status, p), &runs); e != nil {
@@ -256,6 +259,9 @@ func (c *Client) repository(ctx context.Context, org, repo string) ([]Job, error
 					for _, j := range x.Jobs {
 						if j.Status == "queued" || j.Status == "in_progress" {
 							j.Repository = repo
+							if j.Branch == "" {
+								j.Branch = run.Branch
+							}
 							if j.Workflow == "" {
 								j.Workflow = run.Name
 							}

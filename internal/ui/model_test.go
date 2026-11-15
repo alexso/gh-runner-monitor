@@ -5,9 +5,11 @@ package ui
 
 import (
 	tea "charm.land/bubbletea/v2"
+	"charm.land/lipgloss/v2"
 	"context"
 	gh "github.com/alexso/gh-runner-monitor/internal/github"
 	"github.com/alexso/gh-runner-monitor/internal/monitor"
+	"github.com/charmbracelet/x/ansi"
 	"strings"
 	"testing"
 	"time"
@@ -92,5 +94,107 @@ func TestAutomaticRefresh(t *testing.T) {
 	_, cmd = m.Update(result{err: context.DeadlineExceeded})
 	if cmd == nil {
 		t.Fatal("automatic retry not scheduled")
+	}
+}
+
+func TestTableColumnsAndPanelBounds(t *testing.T) {
+	// A long Unicode value must not push the following fixed-width column.
+	first := tableRow([]string{"long界界界界name", "Running", "1m0s", "project / build"}, []int{10, 8, 10, 20})
+	second := tableRow([]string{"r1", "—", "—", "—"}, []int{10, 8, 10, 20})
+	if lipgloss.Width(first) != 54 || lipgloss.Width(second) != 54 || !strings.Contains(first, "…") {
+		t.Fatalf("unexpected cell widths: %q / %q", first, second)
+	}
+	m := New(context.Background(), nil, time.Minute)
+	m.state.Runners = []monitor.Runner{{Name: "runner-1", Status: "Running", Job: &gh.Job{Repository: strings.Repeat("project-", 20), Name: strings.Repeat("build-", 20), Started: time.Now()}}}
+	m.state.Queue = []gh.Job{{Repository: strings.Repeat("project-", 20), Workflow: "CI", Name: strings.Repeat("test-", 20), Created: time.Now()}}
+	for _, width := range []int{40, 60, 100, 160} {
+		for focus := 0; focus < 2; focus++ {
+			m.focus = focus
+			panel := m.panel(focus, width, 12)
+			if lipgloss.Width(panel) > width || lipgloss.Height(panel) != 12 {
+				t.Fatalf("panel %d at width %d: %dx%d", focus, width, lipgloss.Width(panel), lipgloss.Height(panel))
+			}
+			title := "Runners: 1"
+			if focus == 1 {
+				title = "Job queue: 1"
+			}
+			if !strings.Contains(panel, title) || strings.Contains(panel, "entries") || !strings.Contains(panel, "…") {
+				t.Fatalf("unexpected panel: %s", panel)
+			}
+		}
+	}
+}
+
+func TestRefreshedAgo(t *testing.T) {
+	now := time.Date(2026, 1, 1, 12, 0, 0, 0, time.UTC)
+	for _, tc := range []struct {
+		elapsed time.Duration
+		want    string
+	}{{0, "0s ago"}, {42 * time.Second, "42s ago"}, {90 * time.Second, "1m ago"}, {2 * time.Hour, "2h ago"}, {-time.Minute, "0s ago"}} {
+		if got := refreshedAgo(now, now.Add(-tc.elapsed)); got != tc.want {
+			t.Fatalf("%v: got %q want %q", tc.elapsed, got, tc.want)
+		}
+	}
+	if refreshedAgo(now, time.Time{}) != "never" {
+		t.Fatal("zero timestamp")
+	}
+}
+
+func TestHelpPopup(t *testing.T) {
+	for _, size := range []tea.WindowSizeMsg{{Width: 40, Height: 12}, {Width: 60, Height: 20}, {Width: 100, Height: 35}} {
+		m := New(context.Background(), nil, time.Minute)
+		m.width, m.height = size.Width, size.Height
+		updated, _ := m.Update(tea.KeyPressMsg{Code: '?'})
+		m = updated.(Model)
+		if !m.help {
+			t.Fatal("help did not open")
+		}
+		popup := m.helpPopup()
+		if lipgloss.Width(popup) > m.width || lipgloss.Height(popup) > m.height {
+			t.Fatalf("popup %dx%d exceeds %dx%d", lipgloss.Width(popup), lipgloss.Height(popup), m.width, m.height)
+		}
+		if !strings.Contains(m.View().Content, "Keyboard shortcuts") {
+			t.Fatal("overlay missing")
+		}
+		updated, _ = m.Update(tea.KeyPressMsg{Code: 'j'})
+		m = updated.(Model)
+		if m.selection[0] != 0 {
+			t.Fatal("help navigation moved runner selection")
+		}
+		updated, _ = m.Update(tea.KeyPressMsg{Code: tea.KeyEscape})
+		if updated.(Model).help {
+			t.Fatal("escape did not close help")
+		}
+	}
+}
+
+func TestLoadingAndDimmedOverlay(t *testing.T) {
+	m := New(context.Background(), nil, time.Minute)
+	m.width, m.height = 100, 30
+	initial := m.View().Content
+	if !strings.Contains(initial, "Loading dashboard") || strings.Contains(initial, "Runners: 0") || !strings.Contains(initial, "q quit") || strings.Contains(initial, "╭") {
+		t.Fatalf("initial loading screen should show the centered indicator, title, and quit hint: %q", ansi.Strip(initial))
+	}
+	linesAtStartup := strings.Split(ansi.Strip(initial), "\n")
+	if len(linesAtStartup) != m.height || !strings.Contains(linesAtStartup[len(linesAtStartup)-1], "q quit") {
+		t.Fatal("quit hint should remain on the bottom line")
+	}
+	updated, _ := m.Update(result{state: monitor.State{Updated: time.Now()}})
+	m = updated.(Model)
+	if strings.Contains(m.View().Content, "Loading dashboard") {
+		t.Fatal("initial loading indicator remained after success")
+	}
+	m.loading = true
+	if strings.Contains(m.View().Content, "Loading dashboard") || !strings.Contains(m.View().Content, "Refreshing") {
+		t.Fatal("later refresh should remain unobtrusive")
+	}
+	// Verify centering against an otherwise empty backdrop at a deterministic size.
+	popup := "POPUP"
+	plain := ansi.Strip(m.overlay("background", popup))
+	lines := strings.Split(plain, "\n")
+	expectedY := (m.height - 1) / 2
+	expectedX := (m.width - len(popup)) / 2
+	if len(lines) <= expectedY || strings.Index(lines[expectedY], popup) != expectedX || !strings.Contains(plain, "background") {
+		t.Fatal("popup is not centered over the retained backdrop")
 	}
 }

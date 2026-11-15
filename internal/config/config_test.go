@@ -22,7 +22,7 @@ func TestParse(t *testing.T) {
 		}
 	}
 }
-func TestPathAndInit(t *testing.T) {
+func TestPathAndCreate(t *testing.T) {
 	d := t.TempDir()
 	t.Setenv("XDG_CONFIG_HOME", d)
 	p, e := DefaultPath()
@@ -33,10 +33,10 @@ func TestPathAndInit(t *testing.T) {
 		t.Fatal(p)
 	}
 	p = filepath.Join(d, "nested", "config.toml")
-	if e = Init(p); e != nil {
+	if e = Create(p); e != nil {
 		t.Fatal(e)
 	}
-	if e = Init(p); e == nil {
+	if e = Create(p); e == nil {
 		t.Fatal("overwrote config")
 	}
 	if _, e = Load(p); e == nil {
@@ -91,5 +91,38 @@ func TestTemplateHasNoPersonalSettings(t *testing.T) {
 	}
 	if c.Display.RefreshInterval != "2m" || c.Display.QueueSort != "oldest" {
 		t.Fatal(c.Display)
+	}
+}
+
+func TestRememberedLocation(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	t.Setenv("XDG_CONFIG_HOME", filepath.Join(home, "config"))
+	t.Setenv("APPDATA", filepath.Join(home, "config"))
+	defaultPath, err := DefaultPath()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got, err := ResolveDefaultPath(); err != nil || got != defaultPath {
+		t.Fatal(got, err)
+	}
+	custom := filepath.Join(home, "custom", "settings.toml")
+	if err := RememberPath(custom); err != nil {
+		t.Fatal(err)
+	}
+	if got, err := ResolveDefaultPath(); err != nil || got != custom {
+		t.Fatal(got, err)
+	}
+	if err := RememberPath(defaultPath); err != nil {
+		t.Fatal(err)
+	}
+	if got, err := ResolveDefaultPath(); err != nil || got != defaultPath {
+		t.Fatal(got, err)
+	}
+	if err := os.WriteFile(filepath.Join(filepath.Dir(defaultPath), "config-path"), []byte("relative.toml"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := ResolveDefaultPath(); err == nil {
+		t.Fatal("invalid saved path accepted")
 	}
 }

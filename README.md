@@ -6,16 +6,25 @@ A small terminal dashboard for GitHub Actions self-hosted runners and queued job
 
 ```text
 gh-runner-monitor
-Observed running: 2 · Idle: Unknown · Queued: 3 · Updated: 12:34:56
-╭ Runners ───────────────────╮ ╭ Job queue ─────────────────────────╮
-│ › runner-1 · Running       │ │ › project-a · CI / test · ~2m10s    │
-│   runner-2 · —             │ │   project-b · CI / build · ~40s  │
-╰───────────────────────────╯ ╰────────────────────────────────────╯
-Runner inventory access restricted
+Observed running: 2 · Idle: Unknown · Queued: 3
+Updated: 12:34:56 (12s ago)
+╭──────────────────────────────────────────────────────────────╮
+│ ▸ Runners: 2                                                 │
+│   NAME        STATUS    DURATION    REPOSITORY / BRANCH / JOB           │
+│ › runner-1    Running   2m10s       project-a / main / build           │
+│   runner-2    —         —           —                         │
+╰──────────────────────────────────────────────────────────────╯
+╭──────────────────────────────────────────────────────────────╮
+│ Job queue: 3                                                 │
+│   STATUS  AGE       REPOSITORY       BRANCH / WORKFLOW / JOB            │
+│   Queued  ~4m10s    project-a        main / CI / integration…    │
+│   Queued  ~2m30s    project-b        main / CI / build         │
+│   Queued  ~40s      project-c        main / CI / test          │
+╰──────────────────────────────────────────────────────────────╯
 q quit · r refresh · Tab focus · ↑↓/jk move · Enter open · ? help
 ```
 
-Wide terminals show both panels side by side. Medium terminals stack them; short terminals show the focused panel (switch with Tab). Lists scroll with selection.
+Panels always stack vertically, with runners above the queue, to give long names the full terminal width. Short terminals show the focused panel (switch with Tab). Lists scroll with selection. The refresh timestamp includes a live relative age. Startup shows a simple centered loading indicator with quit/help hints at the bottom while authentication and the initial fetch run; subsequent refreshes keep the dashboard visible. Help opens in a centered popup over the dimmed dashboard; use ↑/↓ or j/k to scroll in shorter terminals and ? or Esc to close. Panel headings show total counts. Repository job details include the workflow branch (using `—` when GitHub does not report one), without additional API requests. Columns stay aligned, with status and timing before long job details; long values truncate with an ellipsis. Queued-job groups are shown in job details when reported; absent groups are unknown.
 
 ## Prerequisites and installation
 
@@ -28,7 +37,7 @@ From this project directory:
 ```sh
 gh auth login --hostname github.com
 go build -o bin/gh-runner-monitor ./cmd/gh-runner-monitor
-./bin/gh-runner-monitor init
+./bin/gh-runner-monitor
 # Edit the generated config, then:
 ./bin/gh-runner-monitor --check
 ./bin/gh-runner-monitor
@@ -38,16 +47,35 @@ To install into your Go binary directory, run `go install ./cmd/gh-runner-monito
 
 ```sh
 gh-runner-monitor --config ./config.toml
-gh-runner-monitor init --config ./config.toml
 gh-runner-monitor --help
 gh-runner-monitor --version
+gh-runner-monitor --install-shortcut
 ```
 
-`init` never overwrites an existing file. `--check` prints the API-confirmed account name and observed running job assignments (including group-filter exclusions), validates config, resolves authentication and fetches all monitored API data without opening the UI. Restricted inventory is reported as a warning and does not fail the check if repository monitoring works. Development builds report `dev`; set a version with `go build -ldflags '-X main.version=1.0.0' ./cmd/gh-runner-monitor`.
+A missing config starts first-run setup: the app creates a commented template without overwriting existing files, explains required fields, and exits so you can edit it. The `init` command has been removed. `--check` prints the API-confirmed account name and observed running job assignments (including group-filter exclusions), validates config, resolves authentication and fetches all monitored API data without opening the UI. Restricted inventory is reported as a warning and does not fail the check if repository monitoring works. Development builds report `dev`; set a version with `go build -ldflags '-X main.version=1.0.0' ./cmd/gh-runner-monitor`.
 
 ## Configuration
 
 The default is `~/.config/gh-runner-monitor/config.toml` on Linux and macOS, honoring `XDG_CONFIG_HOME`; Windows uses `%AppData%\gh-runner-monitor\config.toml`. `--config` overrides it on all platforms.
+
+When the selected config is missing, setup runs again—even if the app was used
+before. In an interactive terminal, without `--config`, the app shows the default
+(or previously remembered) path and asks you to accept it with Enter or enter a
+different file path. Relative paths and `~/` paths are accepted and saved as
+absolute paths. Custom choices are remembered in a small `config-path` file
+inside the default configuration directory, so subsequent runs find them without
+`--config`. To reset the saved location, remove that `config-path` file.
+
+An explicit `--config` never changes the remembered path. Non-interactive runs
+use the default or remembered path without asking and still create a missing
+template. `--check` also creates a missing template, prints setup instructions,
+and exits unsuccessfully until the required fields are filled in; it never
+prompts. `--help` and `--version` do not create files.
+
+Setup explains the GitHub CLI prerequisite and `gh auth login --hostname
+github.com`, and shows how to enter `github.organization` and
+`github.repositories`. No API requests are made until the configuration is valid.
+
 
 ```toml
 [github]
@@ -100,7 +128,8 @@ A denied organization inventory request (403/404) leaves repository monitoring w
 | Tab | Switch panel focus |
 | ↑ / ↓ or k / j | Move selection |
 | Enter | Open selected job in default browser |
-| ? | Toggle help |
+| ? | Open or close keyboard help |
+| Esc | Close help |
 
 ## Behavior and limitations
 
@@ -136,11 +165,11 @@ After the first stable release is published to the tap, macOS users can install:
 ```sh
 brew install alexso/tap/gh-runner-monitor
 gh auth login --hostname github.com
-gh-runner-monitor init
+gh-runner-monitor
 # Edit the config, then run gh-runner-monitor --check
 ```
 
-The formula installs `gh` as a dependency. These initial binaries are not signed or
+The formula installs `gh` as a dependency. You can also request the optional `grm` shortcut later with `gh-runner-monitor --install-shortcut` (listed in `--help`); this prompts for confirmation and exits without loading config or contacting GitHub. On first-run setup in an interactive terminal, the app offers an optional `grm` shortcut at `~/.local/bin/grm` on macOS/Linux. Enter or `n` declines; only `y`/`yes` installs it. Existing commands or files are left in place. Shell aliases/functions can take precedence and cannot be detected in the parent shell; decline if you already use that name. No shell startup files are edited. If needed, the app prints how to add `~/.local/bin` to PATH. Remove the shortcut with `rm ~/.local/bin/grm`. For manual installations, keep the target executable at its installed path; Homebrew shortcuts use its stable bin path across upgrades. These initial binaries are not signed or
 notarized with an Apple Developer identity; macOS may require approval under
 Privacy & Security for a downloaded executable.
 

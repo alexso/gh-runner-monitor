@@ -65,10 +65,10 @@ func TestFetchFallbackAndJobs(t *testing.T) {
 		case strings.HasPrefix(p, "orgs/"):
 			return nil, fmt.Errorf("HTTP 403 forbidden")
 		case strings.Contains(p, "/jobs?"):
-			return []byte(`{"jobs":[{"id":4,"status":"queued","created_at":"2026-01-01T00:00:00Z"},{"id":5,"status":"in_progress","runner_name":"r1","runner_group_name":"g","labels":["self-hosted"]},{"id":6,"status":"completed"}]}`), nil
+			return []byte(`{"jobs":[{"id":4,"head_branch":"feature/test","status":"queued","created_at":"2026-01-01T00:00:00Z"},{"id":5,"status":"in_progress","runner_name":"r1","runner_group_name":"g","labels":["self-hosted"]},{"id":6,"status":"completed"}]}`), nil
 		case strings.Contains(p, "status=in_progress"):
 			seenProgress = true
-			return []byte(`{"workflow_runs":[{"id":1,"name":"CI"}]}`), nil
+			return []byte(`{"workflow_runs":[{"id":1,"name":"CI","head_branch":"main"}]}`), nil
 		default:
 			return []byte(`{"workflow_runs":[]}`), nil
 		}
@@ -77,7 +77,7 @@ func TestFetchFallbackAndJobs(t *testing.T) {
 	if e != nil || d.Inventory || d.Warning == "" || len(d.Jobs) != 2 || !seenProgress {
 		t.Fatalf("%+v %v", d, e)
 	}
-	if d.Jobs[0].Created.IsZero() || d.Jobs[1].Group != "g" || d.Jobs[0].Workflow != "CI" {
+	if d.Jobs[0].Created.IsZero() || d.Jobs[1].Group != "g" || d.Jobs[0].Workflow != "CI" || d.Jobs[0].Branch != "feature/test" || d.Jobs[1].Branch != "main" {
 		t.Fatal(d.Jobs)
 	}
 }

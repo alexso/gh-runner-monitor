@@ -4,11 +4,13 @@
 package config
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
 	"regexp"
 	"runtime"
+	"strings"
 	"time"
 
 	"github.com/pelletier/go-toml/v2"
@@ -49,7 +51,7 @@ func DefaultPath() (string, error) {
 func Load(path string) (Config, error) {
 	b, e := os.ReadFile(path)
 	if e != nil {
-		return Config{}, fmt.Errorf("read config %s: %w (run gh-runner-monitor init)", path, e)
+		return Config{}, fmt.Errorf("read config %s: %w", path, e)
 	}
 	return Parse(b)
 }
@@ -120,7 +122,7 @@ refresh_interval = "2m"
 queue_sort = "oldest"
 `
 
-func Init(path string) error {
+func Create(path string) error {
 	if e := os.MkdirAll(filepath.Dir(path), 0700); e != nil {
 		return e
 	}
@@ -134,4 +136,45 @@ func Init(path string) error {
 		return e
 	}
 	return ce
+}
+
+// ResolveDefaultPath honors a previously chosen first-run location.
+func ResolveDefaultPath() (string, error) {
+	path, err := DefaultPath()
+	if err != nil {
+		return "", err
+	}
+	contents, err := os.ReadFile(filepath.Join(filepath.Dir(path), "config-path"))
+	if errors.Is(err, os.ErrNotExist) {
+		return path, nil
+	}
+	if err != nil {
+		return "", fmt.Errorf("read saved config location: %w", err)
+	}
+	saved := strings.TrimSpace(string(contents))
+	if !filepath.IsAbs(saved) {
+		return "", fmt.Errorf("saved config location in %s must be an absolute file path; use --config to override", filepath.Join(filepath.Dir(path), "config-path"))
+	}
+	return saved, nil
+}
+func RememberPath(path string) error {
+	defaultPath, err := DefaultPath()
+	if err != nil {
+		return err
+	}
+	absolute, err := filepath.Abs(path)
+	if err != nil {
+		return err
+	}
+	locator := filepath.Join(filepath.Dir(defaultPath), "config-path")
+	if absolute == defaultPath {
+		if err = os.Remove(locator); err != nil && !errors.Is(err, os.ErrNotExist) {
+			return err
+		}
+		return nil
+	}
+	if err = os.MkdirAll(filepath.Dir(locator), 0700); err != nil {
+		return err
+	}
+	return os.WriteFile(locator, []byte(absolute+"\n"), 0600)
 }
