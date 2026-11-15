@@ -49,7 +49,6 @@ To install into your Go binary directory, run `go install ./cmd/gh-runner-monito
 gh-runner-monitor --config ./config.toml
 gh-runner-monitor --help
 gh-runner-monitor --version
-gh-runner-monitor --install-shortcut
 ```
 
 A missing config starts first-run setup: the app creates a commented template without overwriting existing files, explains required fields, and exits so you can edit it. The `init` command has been removed. `--check` prints the API-confirmed account name and observed running job assignments (including group-filter exclusions), validates config, resolves authentication and fetches all monitored API data without opening the UI. Restricted inventory is reported as a warning and does not fail the check if repository monitoring works. Development builds report `dev`; set a version with `go build -ldflags '-X main.version=1.0.0' ./cmd/gh-runner-monitor`.
@@ -169,7 +168,23 @@ gh-runner-monitor
 # Edit the config, then run gh-runner-monitor --check
 ```
 
-The formula installs `gh` as a dependency. You can also request the optional `grm` shortcut later with `gh-runner-monitor --install-shortcut` (listed in `--help`); this prompts for confirmation and exits without loading config or contacting GitHub. On first-run setup in an interactive terminal, the app offers an optional `grm` shortcut at `~/.local/bin/grm` on macOS/Linux. Enter or `n` declines; only `y`/`yes` installs it. Existing commands or files are left in place. Shell aliases/functions can take precedence and cannot be detected in the parent shell; decline if you already use that name. No shell startup files are edited. If needed, the app prints how to add `~/.local/bin` to PATH. Remove the shortcut with `rm ~/.local/bin/grm`. For manual installations, keep the target executable at its installed path; Homebrew shortcuts use its stable bin path across upgrades. These initial binaries are not signed or
+The formula installs `gh` as a dependency. The app does not install command
+shortcuts or edit shell files. For an optional shortcut, add this to `~/.zshrc`
+(or `~/.bashrc` for Bash):
+
+```sh
+alias ghrm='gh-runner-monitor'
+```
+
+Open a new terminal or reload your shell configuration to use `ghrm`. For a local
+build, point the alias at the absolute path of your `bin/gh-runner-monitor`
+executable instead. Existing shortcuts installed by older versions are left
+untouched; remove an unwanted symlink only after checking its target with
+`ls -l ~/.local/bin/grm` (or `~/.local/bin/ghrm`). Do not remove a command belonging
+to another package. The `--install-shortcut` flag and first-run shortcut prompt
+have been removed.
+
+These initial binaries are not signed or
 notarized with an Apple Developer identity; macOS may require approval under
 Privacy & Security for a downloaded executable.
 

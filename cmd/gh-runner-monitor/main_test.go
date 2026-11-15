@@ -57,8 +57,7 @@ func TestFirstRunLocationAndDeletion(t *testing.T) {
 	home := setupHome(t)
 	custom := filepath.Join(home, "elsewhere", "monitor.toml")
 	var out bytes.Buffer
-	// Both answers share one buffered reader; the shortcut must remain opt-in.
-	if err := runWithInput(nil, strings.NewReader(custom+"\nn\n"), &out, true); err != nil {
+	if err := runWithInput(nil, strings.NewReader(custom+"\n"), &out, true); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := os.Stat(custom); err != nil {
@@ -68,14 +67,14 @@ func TestFirstRunLocationAndDeletion(t *testing.T) {
 	if err != nil || resolved != custom {
 		t.Fatal(resolved, err)
 	}
-	if !strings.Contains(out.String(), "Install grm? [y/N]") || !strings.Contains(out.String(), "Skipped grm") {
-		t.Fatal(out.String())
+	if strings.Contains(out.String(), "shortcut") {
+		t.Fatal("setup must not offer shortcut installation")
 	}
 	if err = os.Remove(custom); err != nil {
 		t.Fatal(err)
 	}
 	out.Reset()
-	if err = runWithInput(nil, strings.NewReader("\nn\n"), &out, true); err != nil {
+	if err = runWithInput(nil, strings.NewReader("\n"), &out, true); err != nil {
 		t.Fatal(err)
 	}
 	if !strings.Contains(out.String(), "No configuration found") || !strings.Contains(out.String(), "Welcome") {
@@ -95,7 +94,7 @@ func TestCheckCreatesMissingConfigWithoutPrompt(t *testing.T) {
 	if _, err := os.Stat(path); err != nil {
 		t.Fatal(err)
 	}
-	if strings.Contains(out.String(), "Install grm?") || strings.Contains(out.String(), "Store the config here?") {
+	if strings.Contains(out.String(), "Store the config here?") {
 		t.Fatal("--check prompted")
 	}
 }
@@ -116,27 +115,21 @@ func TestExplicitConfigDoesNotChangeRememberedPath(t *testing.T) {
 	}
 }
 
-func TestShortcutFlag(t *testing.T) {
-	home := setupHome(t)
+func TestShortcutInstallerRemoved(t *testing.T) {
+	setupHome(t)
 	var out bytes.Buffer
 	if err := runWithInput([]string{"--help"}, strings.NewReader(""), &out, false); err != nil {
 		t.Fatal(err)
 	}
-	if !strings.Contains(out.String(), "install-shortcut") || !strings.Contains(out.String(), "grm") {
-		t.Fatal("shortcut missing from help")
+	if strings.Contains(out.String(), "install-shortcut") {
+		t.Fatal("removed flag remains in help")
 	}
 	out.Reset()
 	if err := runWithInput([]string{"--install-shortcut"}, strings.NewReader(""), &out, false); err == nil {
-		t.Fatal("noninteractive shortcut request should require confirmation")
-	}
-	if err := runWithInput([]string{"--install-shortcut"}, strings.NewReader("\n"), &out, true); err != nil {
-		t.Fatal(err)
+		t.Fatal("removed flag accepted")
 	}
 	path, _ := config.DefaultPath()
 	if _, err := os.Stat(path); !os.IsNotExist(err) {
-		t.Fatal("shortcut flag created config")
-	}
-	if _, err := os.Lstat(filepath.Join(home, ".local", "bin", "grm")); !os.IsNotExist(err) {
-		t.Fatal("shortcut installed without confirmation")
+		t.Fatal("removed flag should not create a config")
 	}
 }

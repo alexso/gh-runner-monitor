@@ -41,9 +41,8 @@ func runWithInput(args []string, in io.Reader, out io.Writer, interactive bool) 
 	path := fs.String("config", "", "configuration file path")
 	check := fs.Bool("check", false, "validate configuration, authentication, and API access")
 	ver := fs.Bool("version", false, "print version")
-	shortcut := fs.Bool("install-shortcut", false, "offer to install grm in ~/.local/bin (macOS/Linux), then exit")
 	fs.Usage = func() {
-		fmt.Fprintln(out, "Usage: gh-runner-monitor [--config path] [--check] [--version] [--install-shortcut]\nMonitor GitHub Actions self-hosted runners and queued jobs.\nA missing configuration starts first-run setup automatically.")
+		fmt.Fprintln(out, "Usage: gh-runner-monitor [--config path] [--check] [--version]\nMonitor GitHub Actions self-hosted runners and queued jobs.\nA missing configuration starts first-run setup automatically.")
 		fs.PrintDefaults()
 	}
 	if e := fs.Parse(args); e != nil {
@@ -58,12 +57,6 @@ func runWithInput(args []string, in io.Reader, out io.Writer, interactive bool) 
 	if *ver {
 		fmt.Fprintln(out, version)
 		return nil
-	}
-	if *shortcut {
-		if !interactive {
-			return fmt.Errorf("--install-shortcut requires an interactive terminal to confirm installation")
-		}
-		return offerShortcut(in, out)
 	}
 	defaultLocation := *path == ""
 	selectedLocation := false
@@ -94,11 +87,6 @@ func runWithInput(args []string, in io.Reader, out io.Writer, interactive bool) 
 		}
 	}
 	if created {
-		if interactive && !*check {
-			if err := offerShortcut(in, out); err != nil {
-				fmt.Fprintln(out, "Shortcut was not installed:", err)
-			}
-		}
 		if *check {
 			return fmt.Errorf("configuration template created at %s; fill in github.organization and github.repositories before --check", *path)
 		}
